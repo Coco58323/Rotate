@@ -147,7 +147,8 @@ def gptq_fwrd(model, dataloader, dev, args):
     use_cache = model.config.use_cache
     model.config.use_cache = False
     layers = model.model.layers
-
+    dev = 'cuda'
+    model = model.to(dev)
     model.model.embed_tokens = model.model.embed_tokens.to(dev)
     model.model.norm = model.model.norm.to(dev)
     layers[0] = layers[0].to(dev)
@@ -186,7 +187,21 @@ def gptq_fwrd(model, dataloader, dev, args):
     position_ids = cache['position_ids']
 
     quantizers = {}
-    sequential = [
+    if 'qwen' in args.model.lower():
+        sequential = [
+                ['self_attn.k_proj.module', 'self_attn.v_proj.module', 'self_attn.q_proj.module'],
+                ['self_attn.o_proj.module'],
+                ["mlp.shared_expert.up_proj.module", "mlp.shared_expert.gate_proj.module"],
+                ["mlp.shared_expert.down_proj.module"],
+            ]
+        expert_up = [f'mlp.experts.{k}.up_proj.module' for k in range(60)]
+        expert_down = [f'mlp.experts.{k}.down_proj.module' for k in range(60)]
+        expert_gate = [f'mlp.experts.{k}.gate_proj.module' for k in range(60)]
+        expert_up = expert_up + expert_gate
+        sequential.append(expert_up)
+        sequential.append(expert_down)
+    else:
+        sequential = [
                 ['self_attn.k_proj.module', 'self_attn.v_proj.module', 'self_attn.q_proj.module'],
                 ['self_attn.o_proj.module'],
                 ['mlp.up_proj.module', 'mlp.gate_proj.module'],

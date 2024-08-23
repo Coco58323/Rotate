@@ -73,7 +73,7 @@ def parser_gen():
 
     # General Arguments
     parser.add_argument('--model', type=str, default='meta-llama/Llama-2-7b-hf',
-                        help='Model to load;', choices=supported_models)
+                        help='Model to load;')
     parser.add_argument('--seed', type=int, default=0, help='Random Seed for HuggingFace and PyTorch')
     parser.add_argument('--eval_dataset', type=str, default='wikitext2',
                         help='Dataset for Evaluation (default: wikitext2)', choices=supported_datasets,)

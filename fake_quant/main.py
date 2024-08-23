@@ -57,7 +57,7 @@ def main():
             model.load_state_dict(save_dict["model"])
             
         elif not args.w_rtn: # GPTQ Weight Quantization
-            assert "llama" in args.model, "Only llama is supported for GPTQ!"
+            # assert "llama" in args.model, "Only llama is supported for GPTQ!"
             
             trainloader = data_utils.get_loaders(
                 args.cal_dataset, nsamples=args.nsamples,
@@ -79,7 +79,7 @@ def main():
     if args.a_bits < 16 or args.v_bits < 16:
         qlayers = quant_utils.find_qlayers(model, layers=[quant_utils.ActQuantWrapper])
         down_proj_groupsize = -1
-        if args.a_groupsize > 0 and "llama" in args.model:
+        if args.a_groupsize > 0:
             down_proj_groupsize = utils.llama_down_proj_groupsize(model, args.a_groupsize)
         
         for name in qlayers:            
@@ -133,7 +133,7 @@ def main():
             eval_mode=True
         )
 
-    
+    model = model.to('cuda')
     dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
     if args.wandb:
             wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})

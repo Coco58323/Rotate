@@ -12,3 +12,9 @@ CMakeFiles/*
 CMakeCache.txt
 *.egg
 Makefile
+third-party/*
+third-party/cutlass
+*.make
+*.cmake
+*/.git
+/third-party/cutlass

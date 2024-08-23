@@ -62,6 +62,13 @@ def fuse_layer_norms(model):
         if model_type == model_utils.LLAMA_MODEL:
             fuse_ln_linear(layer.post_attention_layernorm, [layer.mlp.up_proj, layer.mlp.gate_proj])    
             fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
+        elif model_type == model_utils.QWEN2_MOE_MODEL:
+            fcs = [layer.mlp.gate, layer.mlp.shared_expert_gate, layer.mlp.shared_expert.up_proj, layer.mlp.shared_expert.gate_proj]
+            for k in range(60):
+                fcs.append(layer.mlp.experts[k].up_proj)
+                fcs.append(layer.mlp.experts[k].gate_proj)
+            fuse_ln_linear(layer.post_attention_layernorm, fcs)    
+            fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
         elif model_type == model_utils.OPT_MODEL:
             fuse_ln_linear(layer.self_attn_layer_norm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
             fuse_ln_linear(layer.final_layer_norm, [layer.fc1])
@@ -136,6 +143,8 @@ def rotate_attention_output(layer, Q, model_type) -> None:
         W = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         W = layer.self_attn.out_proj
+    elif model_type == model_utils.QWEN2_MOE_MODEL:
+        W = layer.self_attn.o_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')
 
@@ -152,6 +161,11 @@ def rotate_mlp_input(layer, Q, model_type):
         mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
     elif model_type == model_utils.OPT_MODEL:
         mlp_inputs = [layer.fc1]
+    elif model_type == model_utils.QWEN2_MOE_MODEL:
+        mlp_inputs = [layer.mlp.gate, layer.mlp.shared_expert_gate, layer.mlp.shared_expert.up_proj, layer.mlp.shared_expert.gate_proj]
+        for k in range(60):
+            mlp_inputs.append(layer.mlp.experts[k].up_proj)
+            mlp_inputs.append(layer.mlp.experts[k].gate_proj)
     else:
         raise ValueError(f'Unknown model type {model_type}')
     for W in mlp_inputs:
@@ -161,19 +175,30 @@ def rotate_mlp_input(layer, Q, model_type):
     
 def rotate_mlp_output(layer, Q, model_type):
     # Rotate the MLP output weights and bias.
-    if model_type == model_utils.LLAMA_MODEL:
-        W = layer.mlp.down_proj
-    elif model_type == model_utils.OPT_MODEL:
-        W = layer.fc2
+    if model_type == model_utils.QWEN2_MOE_MODEL:
+        fcs = [layer.mlp.shared_expert.down_proj]
+        for k in range(60):
+            fcs.append(layer.mlp.experts[k].down_proj)
+        for W in fcs:
+            dtype = W.weight.dtype
+            W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
+            W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
+            if W.bias is not None:
+                b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
+                W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
     else:
-        raise ValueError(f'Unknown model type {model_type}')
-    dtype = W.weight.data.dtype
-    W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
-    W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
-    apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
-    if W.bias is not None:
-        b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
-        W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
+        if model_type == model_utils.LLAMA_MODEL:
+            W = layer.mlp.down_proj
+        elif model_type == model_utils.OPT_MODEL:
+            W = layer.fc2
+
+        dtype = W.weight.data.dtype
+        W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
+        W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
+        apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+        if W.bias is not None:
+            b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
+            W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
 
 def matmul_hadU_cuda_had(X, hadK, transpose=False):
     '''
@@ -219,6 +244,8 @@ def rotate_ov_proj(layer, model_type, head_num, head_dim):
         o_proj = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         o_proj = layer.self_attn.out_proj
+    elif model_type == model_utils.QWEN2_MOE_MODEL:
+        o_proj = layer.self_attn.o_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')
     

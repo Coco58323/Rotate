@@ -12,31 +12,31 @@ def evaluator(model, testenc, dev, args):
 
     model.eval()
 
-    if 'opt' in args.model:
-        opt_type = True
-        llama_type = False
-    elif 'meta' in args.model:
-        llama_type = True
-        opt_type = False
-    else:
-        raise ValueError(f'Unknown model {args.model}')
+    # if 'opt' in args.model:
+    #     opt_type = True
+    #     llama_type = False
+    # elif 'meta' in args.model:
+    #     llama_type = True
+    #     opt_type = False
+    # else:
+    #     raise ValueError(f'Unknown model {args.model}')
 
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
 
-    if opt_type:
-        layers = model.model.decoder.layers
-        model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.to(dev)
-        model.model.decoder.embed_positions = model.model.decoder.embed_positions.to(dev)
-        if hasattr(model.model.decoder, 'project_out') and model.model.decoder.project_out:
-            model.model.decoder.project_out = model.model.decoder.project_out.to(dev)
-        if hasattr(model.model.decoder, 'project_in') and model.model.decoder.project_in:
-            model.model.decoder.project_in = model.model.decoder.project_in.to(dev)
+    # if opt_type:
+    #     layers = model.model.decoder.layers
+    #     model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.to(dev)
+    #     model.model.decoder.embed_positions = model.model.decoder.embed_positions.to(dev)
+    #     if hasattr(model.model.decoder, 'project_out') and model.model.decoder.project_out:
+    #         model.model.decoder.project_out = model.model.decoder.project_out.to(dev)
+    #     if hasattr(model.model.decoder, 'project_in') and model.model.decoder.project_in:
+    #         model.model.decoder.project_in = model.model.decoder.project_in.to(dev)
 
-    elif llama_type:
-        layers = model.model.layers
-        model.model.embed_tokens = model.model.embed_tokens.to(dev)
+    # elif llama_type:
+    layers = model.model.layers
+    model.model.embed_tokens = model.model.embed_tokens.to(dev)
 
     layers[0] = layers[0].to(dev)
 
@@ -64,8 +64,8 @@ def evaluator(model, testenc, dev, args):
             inps[cache['i']] = inp
             cache['i'] += 1
             cache['attention_mask'] = kwargs['attention_mask']
-            if llama_type:
-                cache['position_ids'] = kwargs['position_ids']
+            # if llama_type:
+            cache['position_ids'] = kwargs['position_ids']
             raise ValueError
     layers[0] = Catcher(layers[0])
    
@@ -78,16 +78,16 @@ def evaluator(model, testenc, dev, args):
     layers[0] = layers[0].module
     layers[0] = layers[0].cpu()
 
-    if opt_type:
-        model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.cpu()
-        model.model.decoder.embed_positions = model.model.decoder.embed_positions.cpu()
-        if hasattr(model.model.decoder, 'project_out') and model.model.decoder.project_out:
-            model.model.decoder.project_out = model.model.decoder.project_out.cpu()
-        if hasattr(model.model.decoder, 'project_in') and model.model.decoder.project_in:
-            model.model.decoder.project_in = model.model.decoder.project_in.cpu()
-    elif llama_type:
-        model.model.embed_tokens = model.model.embed_tokens.cpu()
-        position_ids = cache['position_ids']
+    # if opt_type:
+    #     model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.cpu()
+    #     model.model.decoder.embed_positions = model.model.decoder.embed_positions.cpu()
+    #     if hasattr(model.model.decoder, 'project_out') and model.model.decoder.project_out:
+    #         model.model.decoder.project_out = model.model.decoder.project_out.cpu()
+    #     if hasattr(model.model.decoder, 'project_in') and model.model.decoder.project_in:
+    #         model.model.decoder.project_in = model.model.decoder.project_in.cpu()
+    # elif llama_type:
+    model.model.embed_tokens = model.model.embed_tokens.cpu()
+    position_ids = cache['position_ids']
 
     torch.cuda.empty_cache()
     outs = [0] * nbatches
@@ -105,38 +105,38 @@ def evaluator(model, testenc, dev, args):
             logging.info(f'Dumped layer input and output to: {save_path}')
 
         for j in range(nbatches):
-            if opt_type:
-                outs[j] = layer(inps[j], attention_mask=attention_mask)[0]
-            elif llama_type:
-                outs[j] = layer(inps[j], attention_mask=attention_mask, position_ids=position_ids)[0]
+            # if opt_type:
+            #     outs[j] = layer(inps[j], attention_mask=attention_mask)[0]
+            # elif llama_type:
+            outs[j] = layer(inps[j], attention_mask=attention_mask, position_ids=position_ids)[0]
         layers[i] = layer.cpu()
         del layer
         torch.cuda.empty_cache()
         inps, outs = outs, inps
 
-    if opt_type:
-        if model.model.decoder.final_layer_norm is not None:
-            model.model.decoder.final_layer_norm = model.model.decoder.final_layer_norm.to(dev)
-        if model.model.decoder.project_out is not None:
-            model.model.decoder.project_out = model.model.decoder.project_out.to(dev)
+    # if opt_type:
+    #     if model.model.decoder.final_layer_norm is not None:
+    #         model.model.decoder.final_layer_norm = model.model.decoder.final_layer_norm.to(dev)
+    #     if model.model.decoder.project_out is not None:
+    #         model.model.decoder.project_out = model.model.decoder.project_out.to(dev)
 
-    elif llama_type:
-        if model.model.norm is not None:
-            model.model.norm = model.model.norm.to(dev)
+    # elif llama_type:
+    if model.model.norm is not None:
+        model.model.norm = model.model.norm.to(dev)
 
     model.lm_head = model.lm_head.to(dev)
     nlls = []
     loss_fct = torch.nn.CrossEntropyLoss(reduction = "none")
     for i in range(nbatches):
         hidden_states = inps[i]
-        if opt_type:
-            if model.model.decoder.final_layer_norm is not None:
-                hidden_states = model.model.decoder.final_layer_norm(hidden_states)
-            if model.model.decoder.project_out is not None:
-                hidden_states = model.model.decoder.project_out(hidden_states)
-        elif llama_type:
-            if model.model.norm is not None:
-                hidden_states = model.model.norm(hidden_states)
+        # if opt_type:
+        #     if model.model.decoder.final_layer_norm is not None:
+        #         hidden_states = model.model.decoder.final_layer_norm(hidden_states)
+        #     if model.model.decoder.project_out is not None:
+        #         hidden_states = model.model.decoder.project_out(hidden_states)
+        # elif llama_type:
+        if model.model.norm is not None:
+            hidden_states = model.model.norm(hidden_states)
         lm_logits = model.lm_head(hidden_states)
         shift_logits = lm_logits[:, :-1, :]
         shift_labels = input_ids[i][:, 1:]
