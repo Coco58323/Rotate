@@ -59,7 +59,7 @@ def fuse_layer_norms(model):
     for layer in layers:
         
         # fuse the input layernorms into the linear layers
-        if model_type == model_utils.LLAMA_MODEL:
+        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
             fuse_ln_linear(layer.post_attention_layernorm, [layer.mlp.up_proj, layer.mlp.gate_proj])    
             fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
         elif model_type == model_utils.QWEN2_MOE_MODEL:
@@ -84,9 +84,19 @@ def fuse_layer_norms(model):
     
     fuse_ln_linear(model_utils.get_pre_head_layernorm(**kwargs), [model_utils.get_lm_head(**kwargs)])
     
+    if model_type == model_utils.LLAMA_MODEL: 
+        replace_ln = transformers.models.llama.modeling_llama.LlamaRMSNorm 
+    elif model_type == model_utils.QWEN2_MODEL:
+        replace_ln = transformers.models.qwen2.modeling_qwen2.Qwen2RMSNorm
+    elif model_type == model_utils.OPT_MODEL:
+        replace_ln = torch.nn.LayerNorm
+    elif model_type == model_utils.QWEN2_MOE_MODEL:
+        replace_ln = transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeRMSNorm
+    else:
+        replace_ln = torch.nn.LayerNorm,
     model_utils.replace_modules(
         model,
-        transformers.models.llama.modeling_llama.LlamaRMSNorm if model_type == model_utils.LLAMA_MODEL else torch.nn.LayerNorm,
+        replace_ln,
         lambda _: model_utils.RMSN(model.config.hidden_size),
         replace_layers=False,
     )
@@ -139,7 +149,7 @@ def rotate_attention_inputs(layer, Q, model_type) -> None:
 
 def rotate_attention_output(layer, Q, model_type) -> None:
     # Rotate output matrix of the self-attention layer.
-    if model_type == model_utils.LLAMA_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
         W = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         W = layer.self_attn.out_proj
@@ -157,11 +167,13 @@ def rotate_attention_output(layer, Q, model_type) -> None:
 
 def rotate_mlp_input(layer, Q, model_type):
     # Rotate the MLP input weights.
-    if model_type == model_utils.LLAMA_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
         mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
+        # mlp_inputs = [layer.mlp.gate_proj]
     elif model_type == model_utils.OPT_MODEL:
         mlp_inputs = [layer.fc1]
     elif model_type == model_utils.QWEN2_MOE_MODEL:
+        # mlp_inputs = [layer.mlp.gate, layer.mlp.shared_expert_gate, layer.mlp.shared_expert.gate_proj]
         mlp_inputs = [layer.mlp.gate, layer.mlp.shared_expert_gate, layer.mlp.shared_expert.up_proj, layer.mlp.shared_expert.gate_proj]
         for k in range(60):
             mlp_inputs.append(layer.mlp.experts[k].up_proj)
@@ -187,7 +199,7 @@ def rotate_mlp_output(layer, Q, model_type):
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
     else:
-        if model_type == model_utils.LLAMA_MODEL:
+        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
             W = layer.mlp.down_proj
         elif model_type == model_utils.OPT_MODEL:
             W = layer.fc2
@@ -195,7 +207,7 @@ def rotate_mlp_output(layer, Q, model_type):
         dtype = W.weight.data.dtype
         W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
         W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
-        apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+        # apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
         if W.bias is not None:
             b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
             W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
@@ -207,7 +219,6 @@ def matmul_hadU_cuda_had(X, hadK, transpose=False):
     Then, it will multiply the retult by another hadamard matrix.
     '''
     from fast_hadamard_transform import hadamard_transform
-    from hadamard_utils import get_had172
     n = X.shape[-1]
     K = hadK.shape[-1]
 
@@ -220,8 +231,7 @@ def matmul_hadU_cuda_had(X, hadK, transpose=False):
         X.shape) 
 
 def rotate_faster_down_proj(layer, model_type, hardK):
-    from fast_hadamard_transform import hadamard_transform
-    if model_type == model_utils.LLAMA_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
         W = layer.mlp.down_proj
     else:
         raise ValueError(f'Faster MLP is onlu supported for LLaMa models!')
@@ -240,7 +250,7 @@ def rotate_head(model, Q: torch.Tensor) -> None:
 
 def rotate_ov_proj(layer, model_type, head_num, head_dim):
     v_proj = layer.self_attn.v_proj
-    if model_type == model_utils.LLAMA_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
         o_proj = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         o_proj = layer.self_attn.out_proj
@@ -269,12 +279,13 @@ def rotate_model(model, args):
     utils.cleanup_memory()
     layers = model_utils.get_transformer_layers(model, 
                                                 model_type=model_type)
+    # print(f'Rotating {len(layers)} layers')
     for idx, layer in enumerate(tqdm.tqdm(layers, unit="layer", desc="Rotating")):
         rotate_attention_inputs(layers[idx], Q, model_type)
         rotate_attention_output(layers[idx], Q, model_type)
         rotate_mlp_input(layers[idx], Q, model_type)
         rotate_mlp_output(layers[idx], Q, model_type)
-        rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
+        # rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
 
 
 @torch.inference_mode
@@ -319,7 +330,7 @@ class QKRotationWrapper(torch.nn.Module):
         k = hadamard_transform(k.float(), scale=1/math.sqrt(k.shape[-1])).to(dtype)
         (bsz, num_heads, seq_len, head_dim) = k.shape
         
-
+        print(k.shape)
         if self.k_groupsize == -1: #token-wise quantization
             token_wise_k = k.transpose(1, 2).reshape(-1, self.config.hidden_size)
             self.k_quantizer.find_params(token_wise_k)

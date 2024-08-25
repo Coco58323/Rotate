@@ -187,7 +187,7 @@ def gptq_fwrd(model, dataloader, dev, args):
     position_ids = cache['position_ids']
 
     quantizers = {}
-    if 'qwen' in args.model.lower():
+    if 'qwen2moe' in args.model.lower():
         sequential = [
                 ['self_attn.k_proj.module', 'self_attn.v_proj.module', 'self_attn.q_proj.module'],
                 ['self_attn.o_proj.module'],

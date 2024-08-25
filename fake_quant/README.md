@@ -34,10 +34,16 @@ Currently, we only support **LLaMa-2** models. You can simply run the `main.py` 
 For example, to run the perplexity of `LLaMA2-7B` model with quantizing all weights and activations, you can run the following command:
 
 ```bash
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/model/meta-llama/Meta-Llama-3-8B  --rotate --a_bits 4 --v_bits 4 --k_bits 4 --w_bits 4 --w_clip
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/model/meta-llama/Meta-Llama-3-8B  --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen-a27b --rotate --a_bits 4 --v_bits 4 --k_bits 4 --w_bits 4 --w_clip --save_qmodel_path quant_qwen-a27b
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen-a27b --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip --save_qmodel_path quant_qwen-a27b
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen-a27b --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/model/meta-llama/Meta-Llama-3-8B  --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_Meta-Llama-3-8B
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/model/meta-llama/Meta-Llama-3-8B  --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_qwen2moe-a27b
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip --save_qmodel_path quant_qwen2moe-a27b
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_Qwen2-7B-Instruct
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
 ```
-~/data/model/qwen-a27b
+~/data/model/qwen2moe-a27b
+
+mv /data/ke.yi/data/model/qwen2moe-a27b /data/ke.yi/data/model/qwen2moe-a27b
+
