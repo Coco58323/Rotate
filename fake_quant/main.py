@@ -37,12 +37,12 @@ def main():
                 qlayers[name].K = K
                 qlayers[name].had_dim = model.config.hidden_size//model.config.num_attention_heads
                 qlayers[name].fp32_had = args.fp32_had
-            # if 'down_proj' in name:
-            #     had_K, K = hadamard_utils.get_hadK(model.config.intermediate_size)
-            #     qlayers[name].online_full_had = True
-            #     qlayers[name].had_K = had_K
-            #     qlayers[name].K = K
-            #     qlayers[name].fp32_had = args.fp32_had
+            if 'down_proj' in name:
+                had_K, K = hadamard_utils.get_hadK(model.config.intermediate_size)
+                qlayers[name].online_full_had = True
+                qlayers[name].had_K = had_K
+                qlayers[name].K = K
+                qlayers[name].fp32_had = args.fp32_had
     else:
         quant_utils.add_actquant(model) #Add Activation Wrapper to the model as the rest of the code assumes it is present
         

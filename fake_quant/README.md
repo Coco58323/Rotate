@@ -40,16 +40,13 @@ CUDA_VISIBLE_DEVICES='5' python main.py --model /data/ke.yi/data/model/qwen2moe-
 CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_qwen2moe-a27b
 CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip --save_qmodel_path quant_qwen2moe-a27b
 CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
-CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_Qwen2-7B-Instruct
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --w_rtn
 CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
 CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 16 --v_bits 16 --k_bits 16 --w_bits 16 --w_clip
-```
-~/data/model/qwen2moe-a27b
-
-mv /data/ke.yi/data/model/qwen2moe-a27b /data/ke.yi/data/model/qwen2moe-a27b
-
-
-doing
 CUDA_VISIBLE_DEVICES='5' python main.py --model /data/ke.yi/data/model/qwen2moe-a27b --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --save_qmodel_path quant_qwen2moe-a27b
 
-[65536, 2048] doesn't match the broadcast shape [1, 65536, 2048]
+CUDA_VISIBLE_DEVICES='4' python main.py --model /data/ke.yi/data/model/Qwen2-7B-Instruct --rotate --a_bits 4 --v_bits 16 --k_bits 16 --w_bits 4 --w_clip --w_rtn
+
+```
+
+
