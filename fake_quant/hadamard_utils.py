@@ -125,6 +125,9 @@ def apply_exact_had_to_linear(module, had_dim=-1, output=False):
     dev = W_.device
     init_shape = W_.shape
     W_ = W_.float().cuda()
+    bias_ = None
+    if module.bias is not None:
+        bias_ = module.bias.data.float().cuda()
     
     if had_dim == -1:
         if output:
@@ -133,6 +136,8 @@ def apply_exact_had_to_linear(module, had_dim=-1, output=False):
         if not output:
             had_K, K = get_hadK(in_features)
             W_ = matmul_hadU_cuda(W_, had_K, K)
+        if bias_ is not None:
+            bias_ = matmul_hadU_cuda(bias_.unsqueeze(0), had_K, K).squeeze(0)
     else:
         # Apply Hadamard to the last had_dim chunks of the weights
         if output:
@@ -142,11 +147,20 @@ def apply_exact_had_to_linear(module, had_dim=-1, output=False):
                 W_.reshape(-1, transposed_shape[-1]//had_dim, had_dim), 
                 scale=1/math.sqrt(had_dim)
                 ).reshape(transposed_shape).t()
+            if bias_ is not None:
+                bias_shape = bias_.shape
+                bias_ = fast_hadamard_transform.hadamard_transform(
+                    bias_.unsqueeze(0).reshape(-1, had_dim), 
+                    scale=1/math.sqrt(had_dim)
+                    ).reshape(bias_shape).squeeze(0)
         else:
             raise NotImplementedError("Not implemented (or tested) yet!")
             n = W_.shape[1]
             W_ = hadamard_transform(W_.reshape(-1, n//had_dim, had_dim), scale=1/math.sqrt(had_dim)).reshape(init_shape)
     module.weight.data = W_.to(device=dev, dtype=dtype)
+    if module.bias is not None:
+        module.bias.data = bias_.to(device=dev, dtype=dtype)
+        
 
 
 

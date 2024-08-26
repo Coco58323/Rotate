@@ -285,7 +285,7 @@ def rotate_model(model, args):
         rotate_attention_output(layers[idx], Q, model_type)
         rotate_mlp_input(layers[idx], Q, model_type)
         rotate_mlp_output(layers[idx], Q, model_type)
-        # rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
+        rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
 
 
 @torch.inference_mode

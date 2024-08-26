@@ -16,8 +16,10 @@ third-party/*
 third-party/cutlass
 *.make
 *.cmake
+*.txt
 */.git
 /third-party/cutlass
 fake_quant/quant_Meta-Llama-3-8B
 fake_quant/quant_Qwen2-7B-Instruct
 third-party/cutlass
+fake_quant/quant_qwen2moe-a27b
