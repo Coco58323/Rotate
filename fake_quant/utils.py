@@ -94,6 +94,7 @@ def parser_gen():
                         help='Apply Hadamard rotation in FP32 (default: False)')
 
     # Activation Quantization Arguments
+    parser.add_argument('--a_runtime_smooth', action=argparse.BooleanOptionalAction, default=False,help='Runtime smoothing for activation quant')
     parser.add_argument('--a_bits', type=int, default=16,
                         help='''Number of bits for inputs of the Linear layers. This will be
                         for all the linear layers in the model (including down-projection and out-projection)''')
@@ -178,8 +179,9 @@ def parser_gen():
     parser.add_argument(
         '--tasks',
         nargs='+',
-        default=["piqa", "hellaswag", "arc_easy", "arc_challenge", "winogrande", "lambada"],
+        default=["arc_easy", "arc_challenge", "boolq", "openbookqa"],
     )
+    parser.add_argument('--apply_chat_template', action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument('--lm_eval_batch_size', type=int, default=128, help='Batch size for evaluating with lm eval harness.')
     parser.add_argument(
         "--distribute",
@@ -191,11 +193,6 @@ def parser_gen():
     if args.lm_eval:
         from lm_eval import tasks
         from lm_eval import utils as lm_eval_utils
-        from lm_eval.tasks import initialize_tasks
-        initialize_tasks()
-        for task in args.tasks:
-            if task not in lm_eval_utils.MultiChoice(tasks.ALL_TASKS):
-                raise ValueError(f"Invalid task: {task}")
 
     # quant_type = f'w{args.w_bits}a{args.a_bits}_{args.rotate_mode}'
     if args.save_name is None:

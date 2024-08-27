@@ -1,0 +1,5 @@
+[default]
+entity = kerry-yi
+project = moe
+base_url = https://api.wandb.ai
+

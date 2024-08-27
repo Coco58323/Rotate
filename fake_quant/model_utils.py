@@ -57,7 +57,7 @@ def get_model(model_name, hf_token):
     torch.nn.init.kaiming_uniform_ = skip
     torch.nn.init.uniform_ = skip
     torch.nn.init.normal_ = skip
-    model = transformers.AutoModelForCausalLM.from_pretrained(model_name, torch_dtype='auto',
+    model = transformers.AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16,
                                                                 use_auth_token=hf_token,
                                                                 low_cpu_mem_usage=True)
     model.seqlen = 2048

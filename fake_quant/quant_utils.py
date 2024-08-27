@@ -186,11 +186,12 @@ class ActQuantWrapper(torch.nn.Module):
         a pre-forward hook will be registerd to rotate the activation before quantization.
     '''
 
-    def __init__(self, module:torch.nn.Linear):
+    def __init__(self, name=None, module:torch.nn.Linear=None):
         super(ActQuantWrapper, self).__init__()
         assert isinstance(module, torch.nn.Linear)
         self.module = module
         self.weight = module.weight
+        self.name = name
         self.bias = module.bias
         self.quantizer = ActQuantizer()
         self.out_quantizer = ActQuantizer()
@@ -201,6 +202,7 @@ class ActQuantWrapper(torch.nn.Module):
         self.online_partial_had = False
         self.had_dim = 0
         self.fp32_had = False
+        self.runtime_smooth = False
 
     def extra_repr(self) -> str:
         str_ = f'Input Quantizer Bits: {self.quantizer.bits}'
@@ -215,7 +217,6 @@ class ActQuantWrapper(torch.nn.Module):
 
     def forward(self, x):
         x_dtype = x.dtype
-
         # Rotate, if needed
         if self.online_full_had:
             
@@ -242,15 +243,44 @@ class ActQuantWrapper(torch.nn.Module):
             x = x.reshape(init_shape)
 
         if self.quantizer.bits < 16: #Quantize, if needed
+            if self.runtime_smooth:
+                act_scales = x.view(-1, x.shape[-1]).abs().max(dim=0)[0]
+                
+                if len(x.shape) == 2:
+                    act_scales = act_scales.view(1, -1)
+                else:
+                    act_scales = act_scales.view(1, 1, -1)
+                act_scales.clamp_(min=1e-5)
+                
+                x = x / act_scales
+
             self.quantizer.find_params(x)
             x = self.quantizer(x).to(x_dtype)
+            if self.runtime_smooth:
+
+                x = x * act_scales
+
             self.quantizer.free()
 
         x = self.module(x).to(x_dtype)
 
         if self.out_quantizer.bits < 16: #Quantize the output, if needed
+            if self.runtime_smooth:
+                act_scales = x.view(-1, x.shape[-1]).abs().max(dim=0)[0]
+                if len(x.shape) == 2:
+                    act_scales = act_scales.view(1, -1)
+                else:
+                    act_scales = act_scales.view(1, 1, -1)
+                act_scales.clamp_(min=1e-5)
+
+                x = x / act_scales
+            
             self.out_quantizer.find_params(x)
             x = self.out_quantizer(x).to(x_dtype)
+
+            if self.runtime_smooth:
+                x = x * act_scales
+
             self.out_quantizer.free()
 
         return x
@@ -372,12 +402,12 @@ def add_actquant(module, name='', layers=[torch.nn.Linear,
     for attr in dir(module):
         tmp = getattr(module, attr)
         if type(tmp) in layers:
-            setattr(module, attr, ActQuantWrapper(tmp))
+            setattr(module, attr, ActQuantWrapper(name=name + '.' + attr if name != '' else attr,module=tmp))
         if type(tmp) == torch.nn.Sequential:
             replaced = []
             for i, child in enumerate(tmp.children()):
                 if type(child) in layers:
-                    replaced.append(ActQuantWrapper(child))
+                    replaced.append(ActQuantWrapper(name=name + '.' + attr if name != '' else attr,module=child))
                 else:
                     replaced.append(child)
             setattr(module, attr, torch.nn.Sequential(*replaced))
@@ -385,7 +415,7 @@ def add_actquant(module, name='', layers=[torch.nn.Linear,
             replaced = []
             for i, child in enumerate(tmp.children()):
                 if type(child) in layers:
-                    replaced.append(ActQuantWrapper(child))
+                    replaced.append(ActQuantWrapper(name=name + '.' + attr if name != '' else attr,module=child))
                 else:
                     replaced.append(child)
             setattr(module, attr, torch.nn.ModuleList(replaced))

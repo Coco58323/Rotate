@@ -13,7 +13,7 @@ def main():
     args = utils.parser_gen()
     if args.wandb:
         import wandb
-        wandb.init(project=args.wandb_project, entity=args.wandb_id)
+        wandb.init(project=args.wandb_project, name=args.wandb_id)
         wandb.config.update(args)
         
     transformers.set_seed(args.seed)
@@ -102,7 +102,7 @@ def main():
                     layer_input_bits = 8
                 layer_groupsize = down_proj_groupsize
 
-                
+            qlayers[name].runtime_smooth = args.a_runtime_smooth
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
                                               sym=layer_a_sym,
@@ -155,10 +155,10 @@ def main():
         model.to(utils.DEV)
     
     tokenizer = transformers.AutoTokenizer.from_pretrained(args.model, use_fast=False, use_auth_token=args.hf_token)
-    hflm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size=args.lm_eval_batch_size)
+    hflm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size='auto', apply_chat_template=args.apply_chat_template)
 
-    task_names = lm_eval_utils.pattern_match(args.tasks, ALL_TASKS)
-    results = lm_eval.simple_evaluate(hflm, tasks=task_names, batch_size=args.lm_eval_batch_size)['results']
+    # task_names = lm_eval_utils.pattern_match(args.tasks, ALL_TASKS)
+    results = lm_eval.simple_evaluate(hflm, tasks=args.tasks, batch_size='auto')['results']
 
     metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
     metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)
