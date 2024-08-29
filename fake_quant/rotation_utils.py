@@ -185,7 +185,7 @@ def rotate_mlp_input(layer, Q, model_type):
         W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
         W.weight.data = torch.matmul(W_, Q).to(device="cpu", dtype=dtype)
     
-def rotate_mlp_output(layer, Q, model_type):
+def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
     # Rotate the MLP output weights and bias.
     if model_type == model_utils.QWEN2_MOE_MODEL:
         fcs = [layer.mlp.shared_expert.down_proj]
@@ -198,7 +198,8 @@ def rotate_mlp_output(layer, Q, model_type):
             if W.bias is not None:
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
-            apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+            if idx != args.target:
+                apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
                 
     else:
         if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
@@ -209,7 +210,8 @@ def rotate_mlp_output(layer, Q, model_type):
         dtype = W.weight.data.dtype
         W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
         W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
-        apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+        if idx != args.target:
+            apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
         if W.bias is not None:
             b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
             W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
@@ -286,7 +288,7 @@ def rotate_model(model, args):
         rotate_attention_inputs(layers[idx], Q, model_type)
         rotate_attention_output(layers[idx], Q, model_type)
         rotate_mlp_input(layers[idx], Q, model_type)
-        rotate_mlp_output(layers[idx], Q, model_type)
+        rotate_mlp_output(layers[idx], Q, model_type, args, idx)
         rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
 
 

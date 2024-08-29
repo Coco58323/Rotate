@@ -37,7 +37,8 @@ def main():
                 qlayers[name].K = K
                 qlayers[name].had_dim = model.config.hidden_size//model.config.num_attention_heads
                 qlayers[name].fp32_had = args.fp32_had
-            if 'down_proj' in name:
+            if 'down_proj' in name and f'layers.{args.target}.' not in name:
+                print("Down Proj: ", name)
                 had_K, K = hadamard_utils.get_hadK(model.config.intermediate_size)
                 qlayers[name].online_full_had = True
                 qlayers[name].had_K = had_K
@@ -56,7 +57,7 @@ def main():
             save_dict = torch.load(args.load_qmodel_path)
             model.load_state_dict(save_dict["model"])
             
-        elif not args.w_rtn: # GPTQ Weight Quantization
+        elif args.w_gptq: # GPTQ Weight Quantization
             # assert "llama" in args.model, "Only llama is supported for GPTQ!"
             
             trainloader = data_utils.get_loaders(
@@ -103,6 +104,7 @@ def main():
                 layer_groupsize = down_proj_groupsize
 
             qlayers[name].runtime_smooth = args.a_runtime_smooth
+            qlayers[name].per_tensor = args.a_per_tensor
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
                                               sym=layer_a_sym,
@@ -158,7 +160,12 @@ def main():
     hflm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size='auto', apply_chat_template=args.apply_chat_template)
 
     # task_names = lm_eval_utils.pattern_match(args.tasks, ALL_TASKS)
-    results = lm_eval.simple_evaluate(hflm, tasks=args.tasks, batch_size='auto')['results']
+    tasks = []
+    from typing import List
+    if isinstance(args.tasks, List):
+        for task in args.tasks:
+            tasks.extend(task.split(','))
+    results = lm_eval.simple_evaluate(hflm, tasks=tasks, batch_size='auto')['results']
 
     metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
     metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)

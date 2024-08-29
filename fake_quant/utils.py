@@ -78,6 +78,7 @@ def parser_gen():
     parser.add_argument('--eval_dataset', type=str, default='wikitext2',
                         help='Dataset for Evaluation (default: wikitext2)', choices=supported_datasets,)
     parser.add_argument('--hf_token', type=str, default=None)
+    parser.add_argument('--target', type=int, default=-1)
     parser.add_argument('--bsz', type=int, default=32,
                         help='Batch-size for PPL evaluation (default:32)')
 
@@ -102,6 +103,8 @@ def parser_gen():
                         help='Groupsize for activation quantization. Note that this should be the same as w_groupsize')
     parser.add_argument('--a_asym', action=argparse.BooleanOptionalAction, default=False,
                         help='ASymmetric Activation quantization (default: False)')
+    parser.add_argument('--a_per_tensor', action=argparse.BooleanOptionalAction, default=False,
+                        help='Per tensor Activation quantization (default: False)')
     parser.add_argument('--a_clip_ratio', type=float, default=1.0,
         help='Clip ratio for activation quantization. new_max = max * clip_ratio')
 

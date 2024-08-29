@@ -176,6 +176,36 @@ class ActQuantizer(torch.nn.Module):
 
             self.scale = self.scale.unsqueeze(1).repeat(1, reshaped_x.shape[-1]).reshape(init_shape)
             self.zero = self.zero.unsqueeze(1).repeat(1, reshaped_x.shape[-1]).reshape(init_shape)
+    def find_params_per_tensor(self, x):
+        print('find_params_per_tensor')
+        if self.bits == 16:
+            return
+        dev = x.device
+        self.maxq = self.maxq.to(dev)
+
+        init_shape = x.shape
+        reshaped_x = x.reshape(x.shape[0],-1)
+        tmp = torch.zeros(reshaped_x.shape[0], device=dev)
+        xmin = torch.minimum(reshaped_x.min(1)[0], tmp) * self.clip_ratio
+        xmax = torch.maximum(reshaped_x.max(1)[0], tmp) * self.clip_ratio
+        if self.sym:
+            xmax = torch.maximum(torch.abs(xmin), xmax)
+            print(xmax)
+            tmp = xmax == 0
+            self.scale = xmax / self.maxq
+            self.scale[tmp] = 1
+            self.zero = torch.zeros_like(self.scale)
+        else:
+            tmp = (xmin == 0) & (xmax == 0)
+            xmin[tmp] = -1
+            xmax[tmp] = +1
+            self.scale = (xmax - xmin) / self.maxq
+            self.zero = torch.round(-xmin / self.scale)
+        cnt=1
+        for shape in init_shape[1:]:
+            cnt*=shape
+        self.scale = self.scale.repeat(1, cnt).reshape(init_shape)
+        self.zero = self.zero.repeat(1, cnt).reshape(init_shape)
 
 class ActQuantWrapper(torch.nn.Module):
     '''
@@ -203,6 +233,7 @@ class ActQuantWrapper(torch.nn.Module):
         self.had_dim = 0
         self.fp32_had = False
         self.runtime_smooth = False
+        self.per_tensor = False
 
     def extra_repr(self) -> str:
         str_ = f'Input Quantizer Bits: {self.quantizer.bits}'
@@ -233,8 +264,7 @@ class ActQuantWrapper(torch.nn.Module):
                 
             init_shape = x.shape
             if self.K == 1:
-                x = fast_hadamard_transform.hadamard_transform(x.reshape(-1, init_shape[-1]//self.had_dim, self.had_dim).transpose(1, 2),
-                                                               scale=1/math.sqrt(init_shape[-1]//self.had_dim)).transpose(1, 2)
+                x = fast_hadamard_transform.hadamard_transform(x.reshape(-1, init_shape[-1]//self.had_dim, self.had_dim).transpose(1, 2),scale=1/math.sqrt(init_shape[-1]//self.had_dim)).transpose(1, 2)
             else:
                 x = (self.had_K.to(x.dtype) @ x.reshape(-1, init_shape[-1]//self.had_dim, self.had_dim)) / math.sqrt(init_shape[-1]//self.had_dim)
                 
@@ -244,20 +274,19 @@ class ActQuantWrapper(torch.nn.Module):
 
         if self.quantizer.bits < 16: #Quantize, if needed
             if self.runtime_smooth:
-                act_scales = x.view(-1, x.shape[-1]).abs().max(dim=0)[0]
-                
                 if len(x.shape) == 2:
-                    act_scales = act_scales.view(1, -1)
+                    act_scales = x.abs().max(dim=0,keepdim=True)[0]
                 else:
-                    act_scales = act_scales.view(1, 1, -1)
+                    act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
-                
                 x = x / act_scales
 
-            self.quantizer.find_params(x)
+            if self.per_tensor:
+                self.quantizer.find_params_per_tensor(x)
+            else:
+                self.quantizer.find_params(x)
             x = self.quantizer(x).to(x_dtype)
             if self.runtime_smooth:
-
                 x = x * act_scales
 
             self.quantizer.free()
@@ -268,14 +297,17 @@ class ActQuantWrapper(torch.nn.Module):
             if self.runtime_smooth:
                 act_scales = x.view(-1, x.shape[-1]).abs().max(dim=0)[0]
                 if len(x.shape) == 2:
-                    act_scales = act_scales.view(1, -1)
+                    act_scales = x.abs().max(dim=0,keepdim=True)[0]
                 else:
-                    act_scales = act_scales.view(1, 1, -1)
+                    act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
 
                 x = x / act_scales
             
-            self.out_quantizer.find_params(x)
+            if self.per_tensor:
+                self.quantizer.find_params_per_tensor(x)
+            else:
+                self.quantizer.find_params(x)
             x = self.out_quantizer(x).to(x_dtype)
 
             if self.runtime_smooth:
