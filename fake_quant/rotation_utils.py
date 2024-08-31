@@ -59,7 +59,7 @@ def fuse_layer_norms(model):
     for layer in layers:
         
         # fuse the input layernorms into the linear layers
-        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
             fuse_ln_linear(layer.post_attention_layernorm, [layer.mlp.up_proj, layer.mlp.gate_proj])    
             fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
         elif model_type == model_utils.QWEN2_MOE_MODEL:
@@ -68,6 +68,13 @@ def fuse_layer_norms(model):
                 fcs.append(layer.mlp.experts[k].up_proj)
                 fcs.append(layer.mlp.experts[k].gate_proj)
             fuse_ln_linear(layer.post_attention_layernorm, fcs)    
+            fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
+        elif model_type == model_utils.MIXTRAL_MODEL:
+            fcs = [layer.block_sparse_moe.gate]
+            for k in range(8):
+                fcs.append(layer.block_sparse_moe.experts[k].w3)
+                fcs.append(layer.block_sparse_moe.experts[k].w1)
+            fuse_ln_linear(layer.post_attention_layernorm, fcs)
             fuse_ln_linear(layer.input_layernorm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
         elif model_type == model_utils.OPT_MODEL:
             fuse_ln_linear(layer.self_attn_layer_norm, [layer.self_attn.q_proj, layer.self_attn.k_proj, layer.self_attn.v_proj])
@@ -92,6 +99,10 @@ def fuse_layer_norms(model):
         replace_ln = torch.nn.LayerNorm
     elif model_type == model_utils.QWEN2_MOE_MODEL:
         replace_ln = transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeRMSNorm
+    elif model_type == model_utils.MISTRAL_MODEL:
+        replace_ln = transformers.models.mistral.modeling_mistral.MistralRMSNorm
+    elif model_type == model_utils.MIXTRAL_MODEL:
+        replace_ln = transformers.models.mixtral.modeling_mixtral.MixtralRMSNorm
     else:
         replace_ln = torch.nn.LayerNorm,
     model_utils.replace_modules(
@@ -149,11 +160,11 @@ def rotate_attention_inputs(layer, Q, model_type) -> None:
 
 def rotate_attention_output(layer, Q, model_type) -> None:
     # Rotate output matrix of the self-attention layer.
-    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
         W = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         W = layer.self_attn.out_proj
-    elif model_type == model_utils.QWEN2_MOE_MODEL:
+    elif model_type == model_utils.QWEN2_MOE_MODEL or model_type == model_utils.MIXTRAL_MODEL:
         W = layer.self_attn.o_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')
@@ -167,7 +178,7 @@ def rotate_attention_output(layer, Q, model_type) -> None:
 
 def rotate_mlp_input(layer, Q, model_type):
     # Rotate the MLP input weights.
-    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
         mlp_inputs = [layer.mlp.up_proj, layer.mlp.gate_proj]
         # mlp_inputs = [layer.mlp.gate_proj]
     elif model_type == model_utils.OPT_MODEL:
@@ -178,6 +189,11 @@ def rotate_mlp_input(layer, Q, model_type):
         for k in range(60):
             mlp_inputs.append(layer.mlp.experts[k].up_proj)
             mlp_inputs.append(layer.mlp.experts[k].gate_proj)
+    elif model_type == model_utils.MIXTRAL_MODEL:
+        mlp_inputs = [layer.block_sparse_moe.gate]
+        for k in range(8):
+            mlp_inputs.append(layer.block_sparse_moe.experts[k].w3)
+            mlp_inputs.append(layer.block_sparse_moe.experts[k].w1)
     else:
         raise ValueError(f'Unknown model type {model_type}')
     for W in mlp_inputs:
@@ -200,9 +216,21 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
             if idx != args.target:
                 apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
-                
+    elif model_type == model_utils.MIXTRAL_MODEL:
+        fcs = []
+        for k in range(8):
+            fcs.append(layer.block_sparse_moe.experts[k].w2)
+        for W in fcs:
+            dtype = W.weight.dtype
+            W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
+            W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
+            if W.bias is not None:
+                b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
+                W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
+            if idx != args.target:
+                apply_exact_had_to_linear(W, had_dim=-1, output=False)
     else:
-        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+        if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
             W = layer.mlp.down_proj
         elif model_type == model_utils.OPT_MODEL:
             W = layer.fc2
@@ -235,7 +263,7 @@ def matmul_hadU_cuda_had(X, hadK, transpose=False):
         X.shape) 
 
 def rotate_faster_down_proj(layer, model_type, hardK):
-    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
         W = layer.mlp.down_proj
     else:
         raise ValueError(f'Faster MLP is onlu supported for LLaMa models!')
@@ -254,11 +282,11 @@ def rotate_head(model, Q: torch.Tensor) -> None:
 
 def rotate_ov_proj(layer, model_type, head_num, head_dim):
     v_proj = layer.self_attn.v_proj
-    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL:
+    if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
         o_proj = layer.self_attn.o_proj
     elif model_type == model_utils.OPT_MODEL:
         o_proj = layer.self_attn.out_proj
-    elif model_type == model_utils.QWEN2_MOE_MODEL:
+    elif model_type == model_utils.QWEN2_MOE_MODEL or model_type == model_utils.MIXTRAL_MODEL:
         o_proj = layer.self_attn.o_proj
     else:
         raise ValueError(f'Unknown model type {model_type}')

@@ -147,8 +147,6 @@ def gptq_fwrd(model, dataloader, dev, args):
     use_cache = model.config.use_cache
     model.config.use_cache = False
     layers = model.model.layers
-    dev = 'cuda'
-    model = model.to(dev)
     model.model.embed_tokens = model.model.embed_tokens.to(dev)
     model.model.norm = model.model.norm.to(dev)
     layers[0] = layers[0].to(dev)
@@ -197,6 +195,17 @@ def gptq_fwrd(model, dataloader, dev, args):
         expert_up = [f'mlp.experts.{k}.up_proj.module' for k in range(60)]
         expert_down = [f'mlp.experts.{k}.down_proj.module' for k in range(60)]
         expert_gate = [f'mlp.experts.{k}.gate_proj.module' for k in range(60)]
+        expert_up = expert_up + expert_gate
+        sequential.append(expert_up)
+        sequential.append(expert_down)
+    elif 'mixtral' in args.model.lower():
+        sequential = [
+                ['self_attn.k_proj.module', 'self_attn.v_proj.module', 'self_attn.q_proj.module'],
+                ['self_attn.o_proj.module'],
+            ]
+        expert_up = [f'block_sparse_moe.experts.{k}.w3.module' for k in range(7)]
+        expert_down = [f'block_sparse_moe.experts.{k}.w2.module' for k in range(7)]
+        expert_gate = [f'block_sparse_moe.experts.{k}.w1.module' for k in range(7)]
         expert_up = expert_up + expert_gate
         sequential.append(expert_up)
         sequential.append(expert_down)

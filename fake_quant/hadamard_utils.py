@@ -57,6 +57,8 @@ def get_hadK(n, transpose=False):
         K = 12
         hadK = get_had12().T if transpose else get_had12()
     else:
+        if not is_pow2(n):
+            raise ValueError(f"{n} must be a power of 2")
         assert (is_pow2(n))
         K = 1
 

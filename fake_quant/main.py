@@ -37,8 +37,7 @@ def main():
                 qlayers[name].K = K
                 qlayers[name].had_dim = model.config.hidden_size//model.config.num_attention_heads
                 qlayers[name].fp32_had = args.fp32_had
-            if 'down_proj' in name and f'layers.{args.target}.' not in name:
-                print("Down Proj: ", name)
+            if ('down_proj' in name or 'w2' in name) and f'layers.{args.target}.' not in name:
                 had_K, K = hadamard_utils.get_hadK(model.config.intermediate_size)
                 qlayers[name].online_full_had = True
                 qlayers[name].had_K = had_K
@@ -57,7 +56,7 @@ def main():
             save_dict = torch.load(args.load_qmodel_path)
             model.load_state_dict(save_dict["model"])
             
-        elif args.w_gptq: # GPTQ Weight Quantization
+        elif not args.w_rtn: # GPTQ Weight Quantization
             # assert "llama" in args.model, "Only llama is supported for GPTQ!"
             
             trainloader = data_utils.get_loaders(
@@ -134,11 +133,11 @@ def main():
             hf_token=args.hf_token,
             eval_mode=True
         )
-
-    model = model.to('cuda')
-    dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
-    if args.wandb:
-            wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})
+    
+    # model = model.to('cuda')
+    # dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
+    # if args.wandb:
+    #         wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})
 
     if not args.lm_eval:
         return
@@ -165,7 +164,7 @@ def main():
     if isinstance(args.tasks, List):
         for task in args.tasks:
             tasks.extend(task.split(','))
-    results = lm_eval.simple_evaluate(hflm, tasks=tasks, batch_size='auto')['results']
+    results = lm_eval.simple_evaluate(hflm, tasks=tasks, batch_size='auto',limit=0.1)['results']
 
     metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
     metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)
