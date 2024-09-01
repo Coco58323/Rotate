@@ -118,6 +118,8 @@ def parser_gen():
                         help='ASymmetric weight quantization (default: False)')
     parser.add_argument('--w_rtn', action=argparse.BooleanOptionalAction, default=False,
                         help='Quantize the weights using RtN. If the w_bits < 16 and this flag is not set, we use GPTQ')
+    parser.add_argument('--w_smooth', action=argparse.BooleanOptionalAction, default=False,
+                        help='Quantize the weights with smoothing')
     parser.add_argument('--w_clip', action=argparse.BooleanOptionalAction, default=False,
                         help='''Clipping the weight quantization! 
                         We do not support arguments for clipping and we find the best clip ratio during the weight quantization''')

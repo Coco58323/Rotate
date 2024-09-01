@@ -38,13 +38,15 @@ class GPTQ:
         self.H += inp.matmul(inp.t())
 
     def fasterquant(
-        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False
+        self, blocksize=128, percdamp=.01, groupsize=-1, actorder=False, static_groups=False, smooth=False
     ):
         W = self.layer.weight.data.clone()
         W = W.float()
-
         tick = time.time()
-
+        if smooth:
+            smooth_scale = W.abs().max(dim=0,keepdim=True).values
+            smooth_scale.clamp_(min=1e-5)
+            W = W / smooth_scale
         if not self.quantizer.ready():
             self.quantizer.find_params(W)
 
@@ -122,6 +124,8 @@ class GPTQ:
             Q = Q[:, invperm]
 
         self.layer.weight.data = Q.reshape(self.layer.weight.shape).to(self.layer.weight.data.dtype)
+        if smooth:
+            self.layer.weight.data *= smooth_scale
         if torch.any(torch.isnan(self.layer.weight.data)):
             logging.warning('NaN in weights')
             import pprint
@@ -254,7 +258,7 @@ def gptq_fwrd(model, dataloader, dev, args):
             for name in subset:
                 layer_w_groupsize = args.w_groupsize
                 gptq[name].fasterquant(
-                    percdamp=args.percdamp, groupsize=layer_w_groupsize, actorder=args.act_order, static_groups=False
+                    percdamp=args.percdamp, groupsize=layer_w_groupsize, actorder=args.act_order, static_groups=False, smooth=args.w_smooth
                 )
                 quantizers['model.layers.%d.%s' % (i, name)] = gptq[name].quantizer
                 gptq[name].free()
@@ -308,9 +312,14 @@ def rtn_fwrd(model, dev, args):
                 layer_weight_bits, perchannel=True, sym=not(args.w_asym), mse=args.w_clip
             )
             W = subset[name].weight.data
+            if args.w_smooth:
+                smooth_scale = W.abs().max(dim=0,keepdim=True).values
+                W = W / smooth_scale
             quantizer.find_params(W)
             subset[name].weight.data = quantizer.quantize(W).to(
                 next(iter(layer.parameters())).dtype)
+            if args.w_smooth:
+                subset[name].weight.data *= smooth_scale
             quantizers['model.layers.%d.%s' % (i, name)] = quantizer.cpu()
         layers[i] = layer.cpu()
         torch.cuda.empty_cache()

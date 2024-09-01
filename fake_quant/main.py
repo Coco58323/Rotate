@@ -134,10 +134,10 @@ def main():
             eval_mode=True
         )
     
-    # model = model.to('cuda')
-    # dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
-    # if args.wandb:
-    #         wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})
+
+    dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
+    if args.wandb:
+            wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})
 
     if not args.lm_eval:
         return
