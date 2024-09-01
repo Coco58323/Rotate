@@ -114,6 +114,8 @@ def parser_gen():
                         help='Number of bits for weights of the Linear layers')
     parser.add_argument('--w_groupsize', type=int, default=-1, 
                         help='Groupsize for weight quantization. Note that this should be the same as a_groupsize')
+    parser.add_argument('--down_groupsize', type=int, default=-1, 
+                        help='Groupsize for down-projection quantization')
     parser.add_argument('--w_asym', action=argparse.BooleanOptionalAction, default=False,
                         help='ASymmetric weight quantization (default: False)')
     parser.add_argument('--w_rtn', action=argparse.BooleanOptionalAction, default=False,

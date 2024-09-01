@@ -214,7 +214,7 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
             if W.bias is not None:
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
-            if idx != args.target:
+            if args.target == -1 or idx == args.target:
                 apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
     elif model_type == model_utils.MIXTRAL_MODEL:
         fcs = []
@@ -227,7 +227,7 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
             if W.bias is not None:
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
-            if idx != args.target:
+            if args.target == -1 or idx == args.target:
                 apply_exact_had_to_linear(W, had_dim=-1, output=False)
     else:
         if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
@@ -238,7 +238,7 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
         dtype = W.weight.data.dtype
         W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
         W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
-        if idx != args.target:
+        if args.target == -1 or idx == args.target:
             apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
         if W.bias is not None:
             b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)

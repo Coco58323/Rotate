@@ -15,6 +15,17 @@ def get_minq_maxq(bits, sym):
 
     return minq, maxq
 
+
+def sym_quant_groupwise(w, groupsize, n_bits=4):
+    out_features, in_features = w.size()
+    w = w.view(-1,groupsize)
+    scales = w.abs().max(dim=-1, keepdim=True)[0]
+    q_max = 2 ** (n_bits - 1) - 1
+    scales.clamp_(min=1e-5).div_(q_max)
+    w.div_(scales).round_().mul_(scales)
+    w = w.view(out_features, in_features)
+    return w
+
 def asym_quant(x, scale, zero, maxq):
     scale = scale.to(x.device)
     zero = zero.to(x.device)

@@ -9,7 +9,7 @@ import logging
 
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
-
+from quant_utils import sym_quant_groupwise
 
 class GPTQ:
 
@@ -256,7 +256,11 @@ def gptq_fwrd(model, dataloader, dev, args):
                 h.remove()
 
             for name in subset:
-                layer_w_groupsize = args.w_groupsize
+                if args.down_groupsize > 0 and 'down_proj' in name:
+                        layer_w_groupsize = args.down_groupsize
+                else:
+                    layer_w_groupsize = args.w_groupsize
+                
                 gptq[name].fasterquant(
                     percdamp=args.percdamp, groupsize=layer_w_groupsize, actorder=args.act_order, static_groups=False, smooth=args.w_smooth
                 )
@@ -315,9 +319,12 @@ def rtn_fwrd(model, dev, args):
             if args.w_smooth:
                 smooth_scale = W.abs().max(dim=0,keepdim=True).values
                 W = W / smooth_scale
-            quantizer.find_params(W)
-            subset[name].weight.data = quantizer.quantize(W).to(
-                next(iter(layer.parameters())).dtype)
+            if 'down_proj' in name and args.down_groupsize > 0:
+                subset[name].weight.data = sym_quant_groupwise(W, args.down_groupsize, args.w_bits)
+            else:
+                quantizer.find_params(W)
+                subset[name].weight.data = quantizer.quantize(W).to(
+                    next(iter(layer.parameters())).dtype)
             if args.w_smooth:
                 subset[name].weight.data *= smooth_scale
             quantizers['model.layers.%d.%s' % (i, name)] = quantizer.cpu()
