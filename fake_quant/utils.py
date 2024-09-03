@@ -96,6 +96,7 @@ def parser_gen():
 
     # Activation Quantization Arguments
     parser.add_argument('--a_runtime_smooth', action=argparse.BooleanOptionalAction, default=False,help='Runtime smoothing for activation quant')
+    parser.add_argument('--exclude_qkv', action=argparse.BooleanOptionalAction, default=False, help='Exclude QKV from smoothing')
     parser.add_argument('--a_bits', type=int, default=16,
                         help='''Number of bits for inputs of the Linear layers. This will be
                         for all the linear layers in the model (including down-projection and out-projection)''')

@@ -18,12 +18,12 @@ def get_minq_maxq(bits, sym):
 
 def sym_quant_groupwise(w, groupsize, n_bits=4):
     out_features, in_features = w.size()
-    w = w.view(-1,groupsize)
+    w = w.reshape(-1,groupsize)
     scales = w.abs().max(dim=-1, keepdim=True)[0]
     q_max = 2 ** (n_bits - 1) - 1
     scales.clamp_(min=1e-5).div_(q_max)
     w.div_(scales).round_().mul_(scales)
-    w = w.view(out_features, in_features)
+    w = w.reshape(out_features, in_features)
     return w
 
 def asym_quant(x, scale, zero, maxq):
@@ -306,7 +306,6 @@ class ActQuantWrapper(torch.nn.Module):
 
         if self.out_quantizer.bits < 16: #Quantize the output, if needed
             if self.runtime_smooth:
-                act_scales = x.view(-1, x.shape[-1]).abs().max(dim=0)[0]
                 if len(x.shape) == 2:
                     act_scales = x.abs().max(dim=0,keepdim=True)[0]
                 else:
@@ -316,9 +315,9 @@ class ActQuantWrapper(torch.nn.Module):
                 x = x / act_scales
             
             if self.per_tensor:
-                self.quantizer.find_params_per_tensor(x)
+                self.out_quantizer.find_params_per_tensor(x)
             else:
-                self.quantizer.find_params(x)
+                self.out_quantizer.find_params(x)
             x = self.out_quantizer(x).to(x_dtype)
 
             if self.runtime_smooth:
