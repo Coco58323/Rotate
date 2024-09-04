@@ -55,9 +55,12 @@ def sym_dequant(q, scale_row, scale_col, bits=32):
 class PackedQuantizedTensor:
     def __init__(self, 
                  quantized_x: torch.Tensor, 
-                 scales_x: torch.Tensor):
+                 scales_x: torch.Tensor,
+                 smooth_scale: torch.Tensor
+                 ):
         self.quantized_x = quantized_x
         self.scales_x = scales_x
+        self.smooth_scale = smooth_scale
 
     def size(self):
         return self.quantized_x.size()

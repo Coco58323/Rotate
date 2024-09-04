@@ -106,9 +106,13 @@ def main():
             if args.exclude_qkv:
                 if 'q_proj' not in name and 'k_proj' not in name and 'v_proj' not in name:
                     qlayers[name].runtime_smooth = args.a_runtime_smooth
+            elif args.include_o:
+                if 'q_proj' not in name and 'k_proj' not in name and 'v_proj' not in name and 'gate_proj' not in name and 'up_proj' not in name and 'down_proj' not in name:
+                    qlayers[name].runtime_smooth = args.a_runtime_smooth
             else:
                 qlayers[name].runtime_smooth = args.a_runtime_smooth
             qlayers[name].per_tensor = args.a_per_tensor
+            qlayers[name].quant_scales = args.a_quant_scales
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
                                               sym=layer_a_sym,

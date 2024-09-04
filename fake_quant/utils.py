@@ -97,6 +97,7 @@ def parser_gen():
     # Activation Quantization Arguments
     parser.add_argument('--a_runtime_smooth', action=argparse.BooleanOptionalAction, default=False,help='Runtime smoothing for activation quant')
     parser.add_argument('--exclude_qkv', action=argparse.BooleanOptionalAction, default=False, help='Exclude QKV from smoothing')
+    parser.add_argument('--include_o', action=argparse.BooleanOptionalAction, default=False, help='Include O in smoothing')
     parser.add_argument('--a_bits', type=int, default=16,
                         help='''Number of bits for inputs of the Linear layers. This will be
                         for all the linear layers in the model (including down-projection and out-projection)''')
@@ -108,6 +109,7 @@ def parser_gen():
                         help='Per tensor Activation quantization (default: False)')
     parser.add_argument('--a_clip_ratio', type=float, default=1.0,
         help='Clip ratio for activation quantization. new_max = max * clip_ratio')
+    parser.add_argument('--a_quant_scales', action=argparse.BooleanOptionalAction, default=False, help='Quantize the scales of the activations')
 
 
     # Weight Quantization Arguments

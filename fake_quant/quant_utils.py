@@ -245,6 +245,7 @@ class ActQuantWrapper(torch.nn.Module):
         self.fp32_had = False
         self.runtime_smooth = False
         self.per_tensor = False
+        self.quant_scales = False
 
     def extra_repr(self) -> str:
         str_ = f'Input Quantizer Bits: {self.quantizer.bits}'
@@ -290,6 +291,9 @@ class ActQuantWrapper(torch.nn.Module):
                 else:
                     act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
+                if self.quant_scales:
+                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 15
+                    act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
 
             if self.per_tensor:
@@ -311,7 +315,9 @@ class ActQuantWrapper(torch.nn.Module):
                 else:
                     act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
-
+                if self.quant_scales:
+                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 15
+                    act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
             
             if self.per_tensor:
