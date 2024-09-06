@@ -244,6 +244,7 @@ class ActQuantWrapper(torch.nn.Module):
         self.had_dim = 0
         self.fp32_had = False
         self.runtime_smooth = False
+        self.out_runtime_smooth = False
         self.per_tensor = False
         self.quant_scales = False
 
@@ -309,14 +310,14 @@ class ActQuantWrapper(torch.nn.Module):
         x = self.module(x).to(x_dtype)
 
         if self.out_quantizer.bits < 16: #Quantize the output, if needed
-            if self.runtime_smooth:
+            if self.out_runtime_smooth:
                 if len(x.shape) == 2:
                     act_scales = x.abs().max(dim=0,keepdim=True)[0]
                 else:
                     act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
                 if self.quant_scales:
-                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 16
+                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] # kv cache does need quant_scale, since it the dequanted FP16 KV will be used for FP16 GEMM
                     act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
             
@@ -325,8 +326,7 @@ class ActQuantWrapper(torch.nn.Module):
             else:
                 self.out_quantizer.find_params(x)
             x = self.out_quantizer(x).to(x_dtype)
-
-            if self.runtime_smooth:
+            if self.out_runtime_smooth:
                 x = x * act_scales
 
             self.out_quantizer.free()
