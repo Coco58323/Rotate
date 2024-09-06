@@ -30,14 +30,14 @@ def main():
         quant_utils.add_actquant(model) #Add Activation Wrapper to the model
         qlayers = quant_utils.find_qlayers(model)
         for name in qlayers:
-            if 'o_proj' in name:
+            if 'o_proj' in name and not args.offline:
                 had_K, K = hadamard_utils.get_hadK(model.config.num_attention_heads)
                 qlayers[name].online_partial_had = True
                 qlayers[name].had_K = had_K
                 qlayers[name].K = K
                 qlayers[name].had_dim = model.config.hidden_size//model.config.num_attention_heads
                 qlayers[name].fp32_had = args.fp32_had
-            if ('down_proj' in name or 'w2' in name) and (f'layers.{args.target}.' in name or args.target == -1):
+            if ('down_proj' in name or 'w2' in name) and (f'layers.{args.target}.' in name or args.target == -1) and not args.offline:
                 had_K, K = hadamard_utils.get_hadK(model.config.intermediate_size)
                 qlayers[name].online_full_had = True
                 qlayers[name].had_K = had_K
@@ -174,14 +174,20 @@ def main():
         for task in args.tasks:
             tasks.extend(task.split(','))
     results = lm_eval.simple_evaluate(hflm, tasks=tasks, batch_size='auto')['results']
-
-    metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
+    qa_tasks = ['arc_easy', 'arc_challenge', 'boolq', 'openbookqa']
+    metric_vals={}
+    for task, result in results.items():
+        if task in qa_tasks:
+            metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4)}
+    for task in qa_tasks:
+        if task in results:
+            results.pop(task)
     metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)
     print(metric_vals)
-
+    print(results)
     if args.wandb:
         wandb.log(metric_vals)
-
+        wandb.log(results)
 
 if __name__ == '__main__':
     main()

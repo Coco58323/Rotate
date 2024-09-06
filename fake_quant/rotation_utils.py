@@ -214,8 +214,9 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
             if W.bias is not None:
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
-            if args.target == -1 or idx == args.target:
-                apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+            if args.target == -1 or idx == args.target :
+                if not args.offline:
+                    apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
     elif model_type == model_utils.MIXTRAL_MODEL:
         fcs = []
         for k in range(8):
@@ -228,7 +229,8 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
                 b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
                 W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
             if args.target == -1 or idx == args.target:
-                apply_exact_had_to_linear(W, had_dim=-1, output=False)
+                if not args.offline:
+                    apply_exact_had_to_linear(W, had_dim=-1, output=False)
     else:
         if model_type == model_utils.LLAMA_MODEL or model_type == model_utils.QWEN2_MODEL or model_type == model_utils.MISTRAL_MODEL:
             W = layer.mlp.down_proj
@@ -239,7 +241,8 @@ def rotate_mlp_output(layer, Q, model_type, args, idx=-1):
         W_ = W.weight.data.to(device=utils.DEV, dtype=torch.float64)
         W.weight.data = torch.matmul(Q.T, W_).to(device="cpu", dtype=dtype)
         if args.target == -1 or idx == args.target:
-            apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
+            if not args.offline:
+                apply_exact_had_to_linear(W, had_dim=-1, output=False) #apply exact (inverse) hadamard on the weights of mlp output
         if W.bias is not None:
             b = W.bias.data.to(device=utils.DEV, dtype=torch.float64)
             W.bias.data = torch.matmul(Q.T, b).to(device="cpu", dtype=dtype)
@@ -317,7 +320,8 @@ def rotate_model(model, args):
         rotate_attention_output(layers[idx], Q, model_type)
         rotate_mlp_input(layers[idx], Q, model_type)
         rotate_mlp_output(layers[idx], Q, model_type, args, idx)
-        rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
+        if not args.offline:
+            rotate_ov_proj(layers[idx], model_type, num_heads, head_dim)
 
 
 @torch.inference_mode
@@ -357,6 +361,7 @@ class QKRotationWrapper(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         q, k = self.func(*args, **kwargs)
+        hidden_size = k.shape[-1] * k.shape[-3]
         dtype = q.dtype
         q = hadamard_transform(q.float(), scale=1/math.sqrt(q.shape[-1])).to(dtype)
         k = hadamard_transform(k.float(), scale=1/math.sqrt(k.shape[-1])).to(dtype)
@@ -364,7 +369,7 @@ class QKRotationWrapper(torch.nn.Module):
         
         print(k.shape)
         if self.k_groupsize == -1: #token-wise quantization
-            token_wise_k = k.transpose(1, 2).reshape(-1, self.config.hidden_size)
+            token_wise_k = k.transpose(1, 2).reshape(-1, hidden_size)
             self.k_quantizer.find_params(token_wise_k)
             k = self.k_quantizer(token_wise_k).reshape((bsz, seq_len, num_heads, head_dim)).transpose(1, 2).to(q)
         else: #head-wise quantization

@@ -292,7 +292,7 @@ class ActQuantWrapper(torch.nn.Module):
                     act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
                 if self.quant_scales:
-                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 15
+                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 16
                     act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
 
@@ -316,7 +316,7 @@ class ActQuantWrapper(torch.nn.Module):
                     act_scales = x.abs().max(dim=1,keepdim=True)[0]
                 act_scales.clamp_(min=1e-5)
                 if self.quant_scales:
-                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 15
+                    max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 16
                     act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
             
