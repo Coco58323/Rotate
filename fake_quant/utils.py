@@ -106,6 +106,7 @@ def parser_gen():
                         help='Groupsize for activation quantization. Note that this should be the same as w_groupsize')
     parser.add_argument('--a_asym', action=argparse.BooleanOptionalAction, default=False,
                         help='ASymmetric Activation quantization (default: False)')
+    parser.add_argument('--a_reorder', action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument('--a_per_tensor', action=argparse.BooleanOptionalAction, default=False,
                         help='Per tensor Activation quantization (default: False)')
     parser.add_argument('--a_clip_ratio', type=float, default=1.0,

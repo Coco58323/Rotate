@@ -291,7 +291,7 @@ def rtn_fwrd(model, dev, args):
     From GPTQ repo 
     TODO: Make this function general to support both OPT and LLaMA models
     '''
-    assert args.w_groupsize ==-1, "Groupsize not supported in RTN!"
+    # assert args.w_groupsize ==-1, "Groupsize not supported in RTN!"
     layers = model.model.layers
     torch.cuda.empty_cache()
 
@@ -321,6 +321,8 @@ def rtn_fwrd(model, dev, args):
                 W = W / smooth_scale
             if 'down_proj' in name and args.down_groupsize > 0:
                 subset[name].weight.data = sym_quant_groupwise(W, args.down_groupsize, args.w_bits)
+            elif args.w_groupsize > 0:
+                subset[name].weight.data = sym_quant_groupwise(W, args.w_groupsize, args.w_bits)
             else:
                 quantizer.find_params(W)
                 subset[name].weight.data = quantizer.quantize(W).to(

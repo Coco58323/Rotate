@@ -120,6 +120,7 @@ def main():
             else:
                 qlayers[name].runtime_smooth = args.a_runtime_smooth
             qlayers[name].per_tensor = args.a_per_tensor
+            qlayers[name].reorder = args.a_reorder
             qlayers[name].quant_scales = args.a_quant_scales
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
@@ -182,20 +183,12 @@ def main():
         for task in args.tasks:
             tasks.extend(task.split(','))
     results = lm_eval.simple_evaluate(hflm, tasks=tasks, batch_size='auto')['results']
-    qa_tasks = ['arc_easy', 'arc_challenge', 'boolq', 'openbookqa']
-    metric_vals={}
-    for task, result in results.items():
-        if task in qa_tasks:
-            metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4)}
-    for task in qa_tasks:
-        if task in results:
-            results.pop(task)
+    metric_vals = {task: round(result.get('acc_norm,none', result['acc,none']), 4) for task, result in results.items()}
+
     metric_vals['acc_avg'] = round(sum(metric_vals.values()) / len(metric_vals.values()), 4)
     print(metric_vals)
-    print(results)
     if args.wandb:
         wandb.log(metric_vals)
-        wandb.log(results)
 
 if __name__ == '__main__':
     main()

@@ -18,6 +18,10 @@ Compile the QuaRot kernels using the following commands:
 git clone https://github.com/spcl/QuaRot.git
 cd QuaRot
 pip install -e .  # or pip install .
+cd third_party
+git clone https://github.com/Dao-AILab/fast-hadamard-transform.git
+cd fast-hadamard-transform
+pip install .
 ```
 
 For simulation results, check [fake_quant](https://github.com/spcl/QuaRot/tree/main/fake_quant) directory.

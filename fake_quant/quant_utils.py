@@ -247,6 +247,7 @@ class ActQuantWrapper(torch.nn.Module):
         self.out_runtime_smooth = False
         self.per_tensor = False
         self.quant_scales = False
+        self.reorder = False
 
     def extra_repr(self) -> str:
         str_ = f'Input Quantizer Bits: {self.quantizer.bits}'
@@ -296,7 +297,10 @@ class ActQuantWrapper(torch.nn.Module):
                     max_scale = act_scales.max(dim=-1, keepdim=True)[0] / 16
                     act_scales.div_(max_scale).ceil_().mul_(max_scale)
                 x = x / act_scales
-
+            # if self.reorder:
+            #     act_scales = x.abs().max(dim=1,keepdim=True)[0]
+            #     reorder = torch.argsort(act_scales, dim=-1, descending=True)
+            #     x = x[reorder]
             if self.per_tensor:
                 self.quantizer.find_params_per_tensor(x)
             else:
@@ -304,7 +308,8 @@ class ActQuantWrapper(torch.nn.Module):
             x = self.quantizer(x).to(x_dtype)
             if self.runtime_smooth:
                 x = x * act_scales
-
+            # if self.reorder:
+            #     x = x[torch.argsort(reorder)]
             self.quantizer.free()
 
         x = self.module(x).to(x_dtype)
