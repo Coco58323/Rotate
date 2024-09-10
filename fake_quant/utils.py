@@ -215,7 +215,7 @@ def parser_gen():
 
     config_logging(os.path.join(args.save_path, f'{args.save_name}.log'))
     
-    assert args.a_groupsize == args.w_groupsize, 'a_groupsize should be the same as w_groupsize!'
+    # assert args.a_groupsize == args.w_groupsize, 'a_groupsize should be the same as w_groupsize!'
     assert args.k_pre_rope == False, 'Pre-RoPE quantization is not supported yet!'
 
     if args.model == 'facebook/opt-125m' or args.model == 'facebook/opt-1.3b':

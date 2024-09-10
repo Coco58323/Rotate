@@ -19,8 +19,9 @@ def main():
     transformers.set_seed(args.seed)
     model = model_utils.get_model(args.model, args.hf_token)
     model.eval()
-    
-    
+    if model.lm_head.weight.device == torch.device('meta'):
+        import torch.nn as nn
+        model.lm_head.weight = nn.Parameter(model.model.embed_tokens.weight.clone())
     # Rotate the weights
     if args.rotate:
         rotation_utils.fuse_layer_norms(model)
