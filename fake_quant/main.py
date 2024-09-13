@@ -122,6 +122,7 @@ def main():
                 qlayers[name].runtime_smooth = args.a_runtime_smooth
             qlayers[name].per_tensor = args.a_per_tensor
             qlayers[name].reorder = args.a_reorder
+            qlayers[name].act_scale_g128 = args.act_scale_g128
             qlayers[name].quant_scales = args.a_quant_scales
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
