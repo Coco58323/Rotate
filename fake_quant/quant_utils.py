@@ -300,9 +300,14 @@ class ActQuantWrapper(torch.nn.Module):
                 if self.act_scale_g128:
                     index = torch.argsort(act_scales, dim=-1, descending=True)
                     act_scales = torch.gather(act_scales, -1, index)
-                    act_scales = act_scales.reshape(x.shape[0],1,x.shape[2]//128,128)
-                    act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,1,128)
-                    act_scales = act_scales.reshape(x.shape[0],1,-1)
+                    if len(x.shape) == 2:
+                        act_scales = act_scales.reshape(1,x.shape[1]//128,128)
+                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,128)
+                        act_scales = act_scales.reshape(1,-1)
+                    else:
+                        act_scales = act_scales.reshape(x.shape[0],1,x.shape[2]//128,128)
+                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,1,128)
+                        act_scales = act_scales.reshape(x.shape[0],1,-1)
                     reverse_index = torch.argsort(index, dim=-1)
                     act_scales = torch.gather(act_scales, -1, reverse_index)
                 x = x / act_scales

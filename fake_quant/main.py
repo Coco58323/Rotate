@@ -96,12 +96,12 @@ def main():
                                               clip_ratio=args.v_clip_ratio)
                 qlayers[name].out_runtime_smooth = args.a_runtime_smooth
             
-            if 'k_proj' in name and args.k_bits < 16: #Set the k_proj precision
-                qlayers[name].out_quantizer.configure(bits=args.k_bits,
-                                              groupsize=args.k_groupsize,
-                                              sym=not(args.k_asym),
-                                              clip_ratio=args.k_clip_ratio)
-                qlayers[name].out_runtime_smooth = args.a_runtime_smooth
+            # if 'k_proj' in name and args.k_bits < 16: #Set the k_proj precision
+            #     qlayers[name].out_quantizer.configure(bits=args.k_bits,
+            #                                   groupsize=args.k_groupsize,
+            #                                   sym=not(args.k_asym),
+            #                                   clip_ratio=args.k_clip_ratio)
+            #     qlayers[name].out_runtime_smooth = args.a_runtime_smooth
             
             if 'lm_head' in name: #Skip lm_head quantization   
                 layer_input_bits = 16
@@ -129,20 +129,20 @@ def main():
                                               sym=layer_a_sym,
                                               clip_ratio=layer_a_clip)
 
-    # if args.k_bits < 16:
-    #     if args.k_pre_rope:
-    #         raise NotImplementedError("Pre-RoPE quantization is not supported yet!")
-    #     else:
-    #         rope_function_name = model_utils.get_rope_function_name(model)
-    #         layers = model_utils.get_layers(model)
-    #         k_quant_config = {'k_bits':args.k_bits, "k_groupsize": args.k_groupsize,
-    #                                       "k_sym": not(args.k_asym), "k_clip_ratio": args.k_clip_ratio}
-    #         for layer in layers:
-    #             rotation_utils.add_qk_rotation_wrapper_after_function_call_in_forward(
-    #                         layer.self_attn, 
-    #                         rope_function_name, 
-    #                         config=model.config,
-    #                         **k_quant_config)
+    if args.k_bits < 16:
+        if args.k_pre_rope:
+            raise NotImplementedError("Pre-RoPE quantization is not supported yet!")
+        else:
+            rope_function_name = model_utils.get_rope_function_name(model)
+            layers = model_utils.get_layers(model)
+            k_quant_config = {'k_bits':args.k_bits, "k_groupsize": args.k_groupsize,
+                                          "k_sym": not(args.k_asym), "k_clip_ratio": args.k_clip_ratio}
+            for layer in layers:
+                rotation_utils.add_qk_rotation_wrapper_after_function_call_in_forward(
+                            layer.self_attn, 
+                            rope_function_name, 
+                            config=model.config,
+                            **k_quant_config)
         
     # Evaluating on dataset
     testloader = data_utils.get_loaders(

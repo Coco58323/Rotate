@@ -361,14 +361,13 @@ class QKRotationWrapper(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         q, k = self.func(*args, **kwargs)
-        hidden_size = k.shape[-1] * k.shape[-3]
         dtype = q.dtype
         q = hadamard_transform(q.float(), scale=1/math.sqrt(q.shape[-1])).to(dtype)
         k = hadamard_transform(k.float(), scale=1/math.sqrt(k.shape[-1])).to(dtype)
         (bsz, num_heads, seq_len, head_dim) = k.shape
         
         if self.k_groupsize == -1: #token-wise quantization
-            token_wise_k = k.transpose(1, 2).reshape(-1, hidden_size)
+            token_wise_k = k.transpose(1, 2).reshape(-1, self.config.hidden_size)
             self.k_quantizer.find_params(token_wise_k)
             k = self.k_quantizer(token_wise_k).reshape((bsz, seq_len, num_heads, head_dim)).transpose(1, 2).to(q)
         else: #head-wise quantization
