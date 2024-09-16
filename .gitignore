@@ -19,6 +19,7 @@ third-party/cutlass
 *.txt
 *.sh
 exp_quant*
+act_scales*
 *.pdf
 Meta*
 download*

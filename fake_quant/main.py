@@ -8,6 +8,7 @@ import rotation_utils
 import gptq_utils
 import eval_utils
 import hadamard_utils
+import smooth_utils
 
 def main():
     args = utils.parser_gen()
@@ -22,6 +23,11 @@ def main():
     if model.lm_head.weight.device == torch.device('meta'):
         import torch.nn as nn
         model.lm_head.weight = nn.Parameter(model.model.embed_tokens.weight.clone())
+    
+    if args.smooth:
+        scales = torch.load(args.smooth)
+        smooth_utils.smooth_lm(model, scales, 0.5)
+
     # Rotate the weights
     if args.rotate:
         rotation_utils.fuse_layer_norms(model)
