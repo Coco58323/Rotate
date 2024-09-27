@@ -42,7 +42,10 @@ def evaluator(model, testenc, dev, args):
 
     # Convert the whole text of evaluation dataset into batches of sequences.
     input_ids = testenc.input_ids  # (1, text_len)
-    nsamples = input_ids.numel() // model.seqlen  # The tail is truncated.
+    if args.nsamples_wiki > 0:
+        nsamples = args.nsamples_wiki
+    else:
+        nsamples = input_ids.numel() // model.seqlen  # The tail is truncated.
     input_ids = input_ids[:, :nsamples * model.seqlen].view(nsamples, model.seqlen).to(dev)  # (nsamples, seqlen)
 
     batch_size = args.bsz

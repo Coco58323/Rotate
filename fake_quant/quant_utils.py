@@ -4,6 +4,19 @@ import torch
 import utils
 import hadamard_utils
 import fast_hadamard_transform
+from rotation_utils import get_orthogonal_matrix
+
+hidden_size = 4096
+inter_size = 14336
+R1 = get_orthogonal_matrix(hidden_size,mode='hadamard').to(dtype=torch.float16)
+R2 = get_orthogonal_matrix(inter_size,mode='hadamard').to(dtype=torch.float16)
+
+
+def smooth_metric(x):
+    x = x.view(-1, x.shape[-1])
+    max_val = x.abs().max(dim=1)[0]
+    mean_val = x.pow(2).mean(dim=1).sqrt()
+    return max_val/mean_val
 
 def get_minq_maxq(bits, sym):
     if sym:
@@ -249,6 +262,13 @@ class ActQuantWrapper(torch.nn.Module):
         self.quant_scales = False
         self.reorder = False
         self.act_scale_g128 = False
+        self.scale_groupsize = 128
+        self.static = False
+        self.prob_x = [0,0,0]
+        self.prob_r = [0,0,0]
+        self.prob_rrs = [0,0,0]
+        self.prob_rs = [0,0,0]
+        self.interval = [(0,4),(4,8),(8,10000000)]
 
     def extra_repr(self) -> str:
         str_ = f'Input Quantizer Bits: {self.quantizer.bits}'
@@ -263,6 +283,22 @@ class ActQuantWrapper(torch.nn.Module):
 
     def forward(self, x):
         x_dtype = x.dtype
+        if self.static:
+            before_r = smooth_metric(x)
+            x_rs = x / x.abs().max(dim=1, keepdim=True)[0]
+            after_rs = smooth_metric(x_rs)
+            if x.shape[-1] == hidden_size:
+                rotate_x = x @ R1
+            else:
+                rotate_x = x @ R2
+            after_r = smooth_metric(rotate_x)
+            rrs_x = rotate_x / rotate_x.abs().max(dim=1, keepdim=True)[0]
+            after_rrs = smooth_metric(rrs_x)
+            for i, (start, end) in enumerate(self.interval):
+                self.prob_x[i] += (before_r > start).logical_and(before_r <= end).sum().item()
+                self.prob_r[i] += (after_r > start).logical_and(after_r <= end).sum().item()
+                self.prob_rs[i] += (after_rs > start).logical_and(after_rs <= end).sum().item()
+                self.prob_rrs[i] += (after_rrs > start).logical_and(after_rrs <= end).sum().item()
         # Rotate, if needed
         if self.online_full_had:
             
@@ -300,13 +336,14 @@ class ActQuantWrapper(torch.nn.Module):
                 if self.act_scale_g128:
                     index = torch.argsort(act_scales, dim=-1, descending=True)
                     act_scales = torch.gather(act_scales, -1, index)
+                    sg = self.scale_groupsize
                     if len(x.shape) == 2:
-                        act_scales = act_scales.reshape(1,x.shape[1]//128,128)
-                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,128)
+                        act_scales = act_scales.reshape(1,x.shape[1]//sg,sg)
+                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,sg)
                         act_scales = act_scales.reshape(1,-1)
                     else:
-                        act_scales = act_scales.reshape(x.shape[0],1,x.shape[2]//128,128)
-                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,1,128)
+                        act_scales = act_scales.reshape(x.shape[0],1,x.shape[2]//sg,sg)
+                        act_scales = act_scales.max(dim=-1,keepdim=True)[0].repeat(1,1,1,sg)
                         act_scales = act_scales.reshape(x.shape[0],1,-1)
                     reverse_index = torch.argsort(index, dim=-1)
                     act_scales = torch.gather(act_scales, -1, reverse_index)

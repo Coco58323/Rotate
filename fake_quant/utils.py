@@ -160,6 +160,7 @@ def parser_gen():
                         help='''Number of bits for K-cache quantization. 
                         Note that quantizing the K-cache needs another rotation for the keys/queries''')
     parser.add_argument('--k_groupsize', type=int, default=-1)
+    parser.add_argument('--scale_groupsize', type=int, default=128)
     parser.add_argument('--k_asym', action=argparse.BooleanOptionalAction, default=False, 
                         help='ASymmetric K-cache quantization')
     parser.add_argument('--k_pre_rope', action=argparse.BooleanOptionalAction, default=False, 
@@ -182,6 +183,7 @@ def parser_gen():
 
 
     #Experiments Arguments
+    parser.add_argument('--nsamples_wiki', type=int, default=-1)
     parser.add_argument('--save_name', type=str, default=None, help='The path to save experiment data, '
                                                                     'including quantized models, dumped layer inputs, etc. The data will be saved in experiments/[model]/save_name. Default: [datetime].')
     parser.add_argument('--capture_layer_io', action=argparse.BooleanOptionalAction, default=False,

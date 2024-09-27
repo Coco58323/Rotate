@@ -33,7 +33,6 @@ def get_act_scales(model, tokenizer, dataset_path, num_samples=512, seq_len=512)
         else:
             act_scales[name] = comming_max
 
-            
 
     def stat_input_hook(m, x, y, name):
         if isinstance(x, tuple):

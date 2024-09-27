@@ -129,6 +129,7 @@ def main():
             qlayers[name].per_tensor = args.a_per_tensor
             qlayers[name].reorder = args.a_reorder
             qlayers[name].act_scale_g128 = args.act_scale_g128
+            qlayers[name].scale_groupsize = args.scale_groupsize
             qlayers[name].quant_scales = args.a_quant_scales
             qlayers[name].quantizer.configure(bits=layer_input_bits,
                                               groupsize=layer_groupsize,
@@ -162,6 +163,40 @@ def main():
     
 
     dataset_ppl = eval_utils.evaluator(model, testloader, utils.DEV, args)
+    qlayers = quant_utils.find_qlayers(model)
+    total = 0
+    interval = 3
+    prob = {}
+    for k in ['v_proj', 'o_proj', 'down_proj', 'up_proj']:
+        prob[k] = {}
+        for j in ['x', 'r', 'rs', 'rrs']:
+            prob[k][j] = [0]*interval
+    for name in qlayers:
+        if 'q_proj' in name or 'k_proj' in name or 'gate_proj' in name:
+            continue
+        if 'lm_head' in name:
+            continue
+        # print(name, qlayers[name].total, qlayers[name].prob_r, qlayers[name].prob_rrs, qlayers[name].prob_x)
+        # total += qlayers[name].total
+        if 'down_proj' in name:
+            key = 'down_proj'
+        elif 'up_proj' in name:
+            key = 'up_proj'
+        elif 'v_proj' in name:
+            key = 'v_proj'
+        elif 'o_proj' in name:
+            key = 'o_proj'
+        for j in range(interval):
+            prob[key]['x'][j] += qlayers[name].prob_x[j]
+            prob[key]['r'][j] += qlayers[name].prob_r[j]
+            prob[key]['rrs'][j] += qlayers[name].prob_rrs[j]
+            prob[key]['rs'][j] += qlayers[name].prob_rs[j]
+    # print("Prob x: ", prob_x)
+    # print("Prob R: ", prob_r)
+    # print("Prob RS: ", prob_rs)
+    # print("Prob RRS: ", prob_rrs)
+    # print("Prob Mixed RRS: ", prob_mixed_rrs)
+    print(prob)
     if args.wandb:
             wandb.log({'ppl/{}'.format(args.eval_dataset.upper()): dataset_ppl})
 
